@@ -1,9 +1,4 @@
 #!/bin/csh -f
-#
-# Title limitations
-# - Backslashes are deleted
-# - Spaces are reduced to single space
-#
 
 #
 # Set to one of: left, right, center
@@ -34,77 +29,69 @@ set nx            = 1
 set ny            = 1
 set col_major     = ''
 
-set n = $#argv
-@ n--
-set args = ($argv[1-$n])
-
-while ($#args > 0)
-   switch ("$args[1]")
+@ n = 1
+while ($n < $#argv)
+   set opt = $argv[$n]
+   @ n++
+   switch ($opt)
    case -top_margin:
-      shift args
-      set top_margin = $args[1]
+      set top_margin = $argv[$n]
       breaksw
    case -bottom_margin:
-      shift args
-      set bottom_margin = $args[1]
+      set bottom_margin = $argv[$n]
       breaksw
    case -left_margin:
-      shift args
-      set left_margin = $args[1]
+      set left_margin = $argv[$n]
       breaksw
    case -right_margin:
-      shift args
-      set right_margin = $args[1]
+      set right_margin = $argv[$n]
       breaksw
    case -x_spacing:
-      shift args
-      set x_spacing = $args[1]
+      set x_spacing = $argv[$n]
       breaksw
    case -y_spacing:
-      shift args
-      set y_spacing = $args[1]
+      set y_spacing = $argv[$n]
       breaksw
    case -nx:
-      shift args
-      set nx = $args[1]
+      set nx = $argv[$n]
       breaksw
    case -ny:
-      shift args
-      set ny = $args[1]
+      set ny = $argv[$n]
       breaksw
    case -page_size:
-      shift args
-      set page_size = `echo $args[1] | tr 'A-Z' 'a-z'`
+      set page_size = `echo $argv[$n] | tr 'A-Z' 'a-z'`
       breaksw
    case -x_page_size:
-      shift args
-      set x_page_size = $args[1]
+      set x_page_size = $argv[$n]
       breaksw
    case -y_page_size:
-      shift args
-      set y_page_size = $args[1]
+      set y_page_size = $argv[$n]
       breaksw
    case -col_major:
+      @ n--
       set col_major = "-c"
       breaksw
    case -infile:
-      shift args
-      set infile = $args[1]
+      set infile = $argv[$n]
       breaksw
    case -outfile:
-      shift args
-      set outfile = $args[1]
+      set outfile = $argv[$n]
       breaksw
-# -title must be at end
+   case -align_pn:
+      set align_pn = $argv[$n]
+      breaksw
+   case -pn_format:
+      set pn_format = "$argv[$n]"
+      breaksw
    case -title:
-      shift args
-      set title = "$argv[$#argv]"
-      break
+      set title = "$argv[$n]"
+      breaksw
    case *:
-      echo "Cannot parse $args[1]"
+      @ n--
+      echo "Cannot parse $argv[$n]"
       exit
    endsw
-   shift args
+   @ n++
 end
 
 if ($x_page_size == 0 && $y_page_size == 0) then
@@ -204,7 +191,7 @@ if ($?title) then
          endif
          
          MATH left_margin = $left_margin + $title_size + $title_margin
-         set ps_title1    = "/$title_font FF $title_size SF STF"
+         set ps_title1    = "PStoPSmatrix setmatrix /$title_font FF $title_size SF STF"
          set ps_title2    = "$title_x_pos $title_y_pos translate 90 rotate 0 0 $M ($title) $T"
       else
          if ("$align_title" == "right") then
@@ -219,6 +206,60 @@ if ($?title) then
          MATH top_margin  = $top_margin + $title_size + $title_margin
          set ps_title1    = "/$title_font FF $title_size SF STF"
          set ps_title2    = "$title_x_pos $title_y_pos $M ($title) $T"
+      endif
+   endif
+endif
+
+#
+# Page number calculations
+#
+set ps_pn1 ps_pn2
+if ($?align_pn) then
+   if ("$align_pn" != "") then
+      set pn_font = Times
+      set pn_size = 10
+      set pn_margin = 6
+
+      set pn = 1
+
+      if ("$align_pn" == "br") then
+         set T = RT
+         set M = ''
+      else if ("$align_pn" == "bc") then
+         set T = CT
+         set M = ''
+      else
+         set T = T
+         set M = M
+      endif
+
+      if ("$col_major" == "-c") then
+         MATH pn_x_pos = $x_page_size - $pn_margin
+
+         if ("$align_pn" == "br") then
+            MATH pn_y_pos = $y_page_size - $top_margin - $pn_size
+         else if ("$align_pn" == "bc") then
+            MATH pn_y_pos = $y_page_size / 2.0
+         else
+            MATH pn_y_pos = $bottom_margin + $pn_size
+         endif
+         
+         MATH right_margin = $right_margin + $pn_size + $pn_margin
+         set ps_pn1 = "PStoPSmatrix setmatrix /$pn_font FF $pn_size SF STF"
+         set ps_pn2 = "$pn_x_pos $pn_y_pos translate 90 rotate 0 0 $M ($pn_format) $T"
+      else
+         if ("$align_pn" == "br") then
+            MATH pn_x_pos = $x_page_size - $right_margin - $pn_size
+         else if ("$align_pn" == "bc") then
+            MATH pn_x_pos = $x_page_size / 2.0
+         else
+            MATH pn_x_pos = $left_margin + $pn_size
+         endif
+
+         MATH pn_y_pos = $pn_size + $bottom_margin
+         MATH bottom_margin = $bottom_margin + $pn_size + $pn_margin
+         set ps_pn1 = "/$pn_font FF $pn_size SF STF"
+         set ps_pn2 = "$pn_x_pos $pn_y_pos $M ($pn_format) $T"
       endif
    endif
 endif
@@ -240,7 +281,7 @@ MATH spacing = $spacing * 72.0 / 2.0
 MATH nup = $nx * $ny
 
 if (! $?GENESIS_DIR) then
-  set GENESIS_DIR = $GENESIS_DIR
+  set GENESIS_DIR = /genesis
 endif
 
 if (! $?GENESIS_EDIR) then
@@ -252,12 +293,6 @@ if ($GENESIS_EDIR =~ /* || $GENESIS_EDIR =~ ?:*) then
 else
   set psnup = "$GENESIS_DIR/$GENESIS_EDIR/misc/psnup"
 endif
-
-##ron test
-echo "==========oOOOOOOOO============"
-echo GENESIS_DIR $?GENESIS_DIR $GENESIS_DIR
-echo GENESIS_EDIR $?GENESIS_EDIR $GENESIS_EDIR
-echo psnup $?psnup $psnup
 
 if (! $?GENESIS_TMP) then
    set GENESIS_TMP = $GENESIS_DIR/tmp
@@ -271,6 +306,7 @@ set tmpfile = $GENESIS_TMP/psnup.$$
 # -q quiet
 "$psnup" -q -m$page_margin -b$spacing -d1 $page_size_opt -$nup $col_major "$infile" "$tmpfile"
 
+set total = `grep -e '^%%Page:' "$tmpfile" | wc -l`
 #
 # Write page size in Postscript file
 #
@@ -293,13 +329,16 @@ MATH shift_y = ($bottom_margin - $top_margin) / 2.0
 
 
 set tmp_awk_file = $GENESIS_TMP/tmp_awk_file.$$
-echo $GENESIS_TMP
-
 cat > $tmp_awk_file << EOF
-   {print;
-    if (\$1 == "%%Page:") { print "$ps_title1"; print "$ps_title2"; }
-    if (\$NF == "translate") print "$shift_x $shift_y translate";}
+   BEGIN { pn = 1; }
+   {
+    print;
+    if (\$1 == "%%Page:") { print "$ps_title1"; print "$ps_title2"; print "$ps_pn1"; printf "$ps_pn2\\n", pn++; }
+    if (\$NF == "translate") print "$shift_x $shift_y translate";
+   }
 EOF
-tail +2 < $tmpfile | awk -f $tmp_awk_file >> $outfile
 
-\rm $tmpfile $tmp_awk_file
+tail -n +2 < $tmpfile | awk -f $tmp_awk_file >> $outfile
+
+\rm -f $tmpfile $tmp_awk_file
+exit 0
