@@ -1,12 +1,91 @@
-#!/bin/sh
-# Convert PostScript to PDF.
+#!/bin/csh -f
+#
+# Convert PostScript to PDF
+#
+# Parameters:
+#    Source file path (PostScript file)
+#    Destination file path (PDF file)
+#
+set ps_file  = "$1"
+set pdf_file = "$2"
 
-# Currently, we produce PDF 1.4 by default, but this is not guaranteed
-# not to change in the future.
-version=14
+if ($?WINDIR) then
 
-ps2pdf="`dirname \"$0\"`/ps2pdf$version"
-if test ! -x "$ps2pdf"; then
-	ps2pdf="ps2pdf$version"
-fi
-exec "$ps2pdf" "$@"
+   #
+   # Convert backslashes to forward slashes
+   #
+   set ps_file  = "$ps_file:as#\\#/#"
+   set pdf_file = "$pdf_file:as#\\#/#"
+
+   #
+   # Uncomment these lines to set up your own pdf to postscript conversion on Windows
+   #
+   # set converter_file = "<postscript to pdf conversion program>"
+   # set converter_dir  = "<postscript conversion program location>"
+
+   set gs_converter_file = gswin32c.exe
+   set gs_converter_dir = c:/xYh
+   set nonomatch
+   set gs_converter_dir  = c:/Program\ Files/gs/gs*/bin
+   if (! -d "$gs_converter_dir") then
+      set gs_converter_dir  = N:/gs*/bin
+   endif
+
+   set pstill_converter_file = pstill.exe
+   set pstill_converter_dir  = "c:/Program Files/GPStill"
+
+   if ($?converter_file) then
+
+      "$converter_dir/converter_file" "$ps_file" "$pdf_file"
+
+   else if (-f "$gs_converter_dir/$gs_converter_file") then
+
+      setenv GS_LIB "$gs_converter_dir:s#bin#lib#"
+      unsetenv TMPDIR
+
+      "$gs_converter_dir/$gs_converter_file" \
+          -q -dCompatibilityLevel=1.4 -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sOutputFile="$pdf_file" -c save pop -f "$ps_file"
+
+   else if (-f "$pstill_converter_dir/$pstill_converter_file") then
+
+      setenv PSTILL_PATH "$pstill_converter_dir"
+      "$pstill_converter_dir/$pstill_converter_file" -c -c -c -g -i -p -t -o "$pdf_file" "$ps_file"
+
+   else
+
+      echo "Cannot find Postscript to PDF conversion program"
+      exit 1
+
+   endif
+
+else
+   #
+   # Uncomment this line to set up your own pdf to postscript conversion on Unix/Linux
+   #
+   # set converter = ""
+   set gs_converter     = 'ps2pdf14'
+   set pstill_converter = 'pstill'
+
+   set gs_path     = (`which "$gs_converter"`)
+   set pstill_path = (`which "$pstill_converter"`)
+   
+   if (-e "$gs_path") then
+
+      \rm -f "$pdf_file"
+      set tmp_path = $GENESIS_TMP/rmdef.$$
+      sed 's#/DeferredMediaSelection true##' < "$ps_file" > "$tmp_path"
+      mv "$tmp_path" "$ps_file"
+      "$gs_converter" "$ps_file" "$pdf_file"
+
+   else if (-e "$pstill_path") then
+
+      setenv PSTILL_PATH "$pstill_path:h"
+      "$pstill_converter" -c -g -i -p -t -o "$pdf_file" "$ps_file"
+
+   else if ($?converter) then
+
+      "$converter" "$ps_file" "$pdf_file"
+
+   endif
+
+endif

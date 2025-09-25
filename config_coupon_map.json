@@ -1,0 +1,30 @@
+{
+  "default": {
+    "cpn_map_pdf_name": "cpn_map",
+    "print_title": "",
+    "print_lay_name": "{TOP_LAYER_NAME}",
+    "label_layers": "no",
+    "paper_size": "A4",
+    "print_location": "{JOB_PATH}/user/{cpn_map_pdf_name}.pdf"
+  },
+  "sites": {
+    "ANAHEIM": {
+      "cpn_map_pdf_name": "cpn_map"
+    },
+    "ORANGE": {
+      "cpn_map_pdf_name": "cpn_map"
+    },
+    "HOLLISTER": {
+      "cpn_map_pdf_name": "cpn_map"
+    },
+    "CHICAGO": {
+      "cpn_map_pdf_name": "cpn_map"
+    },
+    "SANTACLARA": {
+      "cpn_map_pdf_name": "cpn_map"
+    },
+    "TORONTO": {
+      "cpn_map_pdf_name": "cpn_map"
+    }
+  }
+}
