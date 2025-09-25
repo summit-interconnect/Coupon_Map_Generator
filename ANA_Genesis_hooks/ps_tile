@@ -1,0 +1,305 @@
+#!/bin/csh -f
+#
+# Title limitations
+# - Backslashes are deleted
+# - Spaces are reduced to single space
+#
+
+#
+# Set to one of: left, right, center
+#
+set align_title = center
+
+alias MATH 'set \!:1 = `echo "\!:3-$" | bc -l`'
+alias MAX 'set \!:1 = `echo "if (\!:3 >= \!:4) \!:3; if (\!:4 > \!:3) \!:4" | bc -l`'
+
+if ($?WINDIR) then
+   alias awk awk95
+else if (`uname` == "SunOS") then
+   alias awk nawk
+endif
+
+set top_margin    = 0
+set bottom_margin = 0
+set left_margin   = 0
+set right_margin  = 0
+set x_spacing     = 0
+set y_spacing     = 0
+set infile        = ''
+set outfile       = ''
+set page_size     = 'a4'
+set x_page_size   = 0
+set y_page_size   = 0
+set nx            = 1
+set ny            = 1
+set col_major     = ''
+
+set n = $#argv
+@ n--
+set args = ($argv[1-$n])
+
+while ($#args > 0)
+   switch ("$args[1]")
+   case -top_margin:
+      shift args
+      set top_margin = $args[1]
+      breaksw
+   case -bottom_margin:
+      shift args
+      set bottom_margin = $args[1]
+      breaksw
+   case -left_margin:
+      shift args
+      set left_margin = $args[1]
+      breaksw
+   case -right_margin:
+      shift args
+      set right_margin = $args[1]
+      breaksw
+   case -x_spacing:
+      shift args
+      set x_spacing = $args[1]
+      breaksw
+   case -y_spacing:
+      shift args
+      set y_spacing = $args[1]
+      breaksw
+   case -nx:
+      shift args
+      set nx = $args[1]
+      breaksw
+   case -ny:
+      shift args
+      set ny = $args[1]
+      breaksw
+   case -page_size:
+      shift args
+      set page_size = `echo $args[1] | tr 'A-Z' 'a-z'`
+      breaksw
+   case -x_page_size:
+      shift args
+      set x_page_size = $args[1]
+      breaksw
+   case -y_page_size:
+      shift args
+      set y_page_size = $args[1]
+      breaksw
+   case -col_major:
+      set col_major = "-c"
+      breaksw
+   case -infile:
+      shift args
+      set infile = $args[1]
+      breaksw
+   case -outfile:
+      shift args
+      set outfile = $args[1]
+      breaksw
+# -title must be at end
+   case -title:
+      shift args
+      set title = "$argv[$#argv]"
+      break
+   case *:
+      echo "Cannot parse $args[1]"
+      exit
+   endsw
+   shift args
+end
+
+if ($x_page_size == 0 && $y_page_size == 0) then
+   switch ($page_size)
+   case a0:
+      set x_page_size = 2384
+      set y_page_size = 3370
+      breaksw
+   case a1:
+      set x_page_size = 1684
+      set y_page_size = 2384
+      breaksw
+   case a2:
+      set x_page_size = 1191
+      set y_page_size = 1684
+      breaksw
+   case a3:
+      set x_page_size = 842
+      set y_page_size = 1191
+      breaksw
+   case a4:
+      set x_page_size = 595
+      set y_page_size = 842
+      breaksw
+   case a5:
+      set x_page_size = 420
+      set y_page_size = 595
+      breaksw
+   case b4:
+      set x_page_size = 708
+      set y_page_size = 1001
+      breaksw
+   case b5:
+      set x_page_size = 499
+      set y_page_size = 708
+      breaksw
+   case letter:
+      set x_page_size = 612
+      set y_page_size = 792
+      breaksw
+   endsw
+else
+   MATH x_page_size = $x_page_size * 72
+   MATH y_page_size = $y_page_size * 72
+endif
+
+if ($x_page_size == 0 || $y_page_size == 0) then
+   echo "Unknown page size"
+   exit 1
+endif
+
+set page_size_opt = "-w$x_page_size -h$y_page_size"
+
+#
+# Calculate page margin in points
+#
+
+MATH left_margin   = $left_margin   * 72.0
+MATH right_margin  = $right_margin  * 72.0
+MATH top_margin    = $top_margin    * 72.0
+MATH bottom_margin = $bottom_margin * 72.0
+
+#
+# Title calculations
+#
+if ($?title) then
+   if ("$title" == "") then
+      set ps_title1 = ''
+      set ps_title2 = ''
+   else
+      set title_font = Times-BoldItalic
+      set title_size = 24
+      set title_margin = 6
+
+      set title = (`echo "$title" | sed  -e 's/\\/\\\\\\/g' -e 's/(/\\\\(/g' -e 's/)/\\\\)/g'`)
+
+      if ("$align_title" == "right") then
+         set T = RT
+         set M = ''
+      else if ("$align_title" == "center") then
+         set T = CT
+         set M = ''
+      else
+         set T = T
+         set M = M
+      endif
+
+      if ("$col_major" == "-c") then
+         MATH title_x_pos = $left_margin + $title_size * 3 / 4
+
+         if ("$align_title" == "right") then
+            MATH title_y_pos = $y_page_size - $top_margin - $title_size
+         else if ("$align_title" == "center") then
+            MATH title_y_pos = $y_page_size / 2.0
+         else
+            MATH title_y_pos = $bottom_margin + $title_size
+         endif
+         
+         MATH left_margin = $left_margin + $title_size + $title_margin
+         set ps_title1    = "/$title_font FF $title_size SF STF"
+         set ps_title2    = "$title_x_pos $title_y_pos translate 90 rotate 0 0 $M ($title) $T"
+      else
+         if ("$align_title" == "right") then
+            MATH title_x_pos = $x_page_size - $right_margin - $title_size
+         else if ("$align_title" == "center") then
+            MATH title_x_pos = $x_page_size / 2.0
+         else
+            MATH title_x_pos = $left_margin + $title_size
+         endif
+
+         MATH title_y_pos = $y_page_size - $title_size - $top_margin
+         MATH top_margin  = $top_margin + $title_size + $title_margin
+         set ps_title1    = "/$title_font FF $title_size SF STF"
+         set ps_title2    = "$title_x_pos $title_y_pos $M ($title) $T"
+      endif
+   endif
+endif
+
+MATH x_margin      = ($left_margin + $right_margin)  / 2.0
+MATH y_margin      = ($top_margin  + $bottom_margin) / 2.0
+
+MAX  page_margin   = $x_margin $y_margin
+
+#
+# Calculate image spacing
+#
+MAX  spacing = $x_spacing $y_spacing
+MATH spacing = $spacing * 72.0 / 2.0
+
+#
+# Calculate number up
+#
+MATH nup = $nx * $ny
+
+if (! $?GENESIS_DIR) then
+  set GENESIS_DIR = $GENESIS_DIR
+endif
+
+if (! $?GENESIS_EDIR) then
+  set GENESIS_EDIR = e$GENESIS_VER
+endif
+
+if ($GENESIS_EDIR =~ /* || $GENESIS_EDIR =~ ?:*) then
+  set psnup = "$GENESIS_EDIR/misc/psnup"
+else
+  set psnup = "$GENESIS_DIR/$GENESIS_EDIR/misc/psnup"
+endif
+
+##ron test
+echo "==========oOOOOOOOO============"
+echo GENESIS_DIR $?GENESIS_DIR $GENESIS_DIR
+echo GENESIS_EDIR $?GENESIS_EDIR $GENESIS_EDIR
+echo psnup $?psnup $psnup
+
+if (! $?GENESIS_TMP) then
+   set GENESIS_TMP = $GENESIS_DIR/tmp
+endif
+
+set tmpfile = $GENESIS_TMP/psnup.$$
+\rm -f $tmpfile
+
+# -m points for paper margin
+# -b points surrounding each image
+# -q quiet
+"$psnup" -q -m$page_margin -b$spacing -d1 $page_size_opt -$nup $col_major "$infile" "$tmpfile"
+
+#
+# Write page size in Postscript file
+#
+cat >! $outfile << EOF
+%!PS
+%%DocumentPaperSizes: $page_size
+%%EndComments
+/setpagedevice where
+{ pop 1 dict
+  dup /PageSize [ $x_page_size $y_page_size ] put
+  setpagedevice
+} if
+EOF
+
+#
+# Handle unbalanced margins
+#
+MATH shift_x = ($left_margin - $right_margin) / 2.0
+MATH shift_y = ($bottom_margin - $top_margin) / 2.0
+
+
+set tmp_awk_file = $GENESIS_TMP/tmp_awk_file.$$
+echo $GENESIS_TMP
+
+cat > $tmp_awk_file << EOF
+   {print;
+    if (\$1 == "%%Page:") { print "$ps_title1"; print "$ps_title2"; }
+    if (\$NF == "translate") print "$shift_x $shift_y translate";}
+EOF
+tail +2 < $tmpfile | awk -f $tmp_awk_file >> $outfile
+
+\rm $tmpfile $tmp_awk_file
